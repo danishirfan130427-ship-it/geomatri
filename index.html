@@ -1,0 +1,1071 @@
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#070912">
+<title>Geometri Interaktif — Lukisan Fungsi 2D & 3D</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/11.8.0/math.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<style>
+:root{
+  --bg-deep:#070912;
+  --bg-panel:#0e1120;
+  --bg-panel-soft:#12162a;
+  --bg-elevated:#171c33;
+  --border:#242a45;
+  --border-soft:#1b2038;
+  --accent:#00f0c0;
+  --accent-dim:#00c9a0;
+  --accent2:#7c5cff;
+  --accent3:#ff6b81;
+  --text:#eef1fb;
+  --text-dim:#9298bd;
+  --text-faint:#5c6389;
+  --radius:16px;
+  --radius-sm:10px;
+  --font-display:'Space Grotesk',sans-serif;
+  --font-body:'Inter',sans-serif;
+  --font-mono:'JetBrains Mono',monospace;
+}
+*{box-sizing:border-box;}
+html,body{height:100%;margin:0;padding:0;}
+body{
+  font-family:var(--font-body);
+  background:
+    radial-gradient(circle at 15% -10%, #17204a 0%, transparent 45%),
+    radial-gradient(circle at 100% 0%, #2a1240 0%, transparent 40%),
+    radial-gradient(circle at 50% 100%, #0a2b28 0%, transparent 45%),
+    var(--bg-deep);
+  color:var(--text);
+  min-height:100vh;
+  position:relative;
+  overflow-x:hidden;
+  -webkit-tap-highlight-color:transparent;
+}
+#bgFX{position:fixed;inset:0;width:100%;height:100%;z-index:0;pointer-events:none;}
+.app-shell{position:relative;z-index:1;max-width:1240px;margin:0 auto;padding:calc(16px + env(safe-area-inset-top)) 16px calc(24px + env(safe-area-inset-bottom));}
+
+/* ---------- Topbar ---------- */
+.topbar{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:18px;}
+.brand{display:flex;align-items:center;gap:12px;}
+#logoFX{border-radius:10px;background:radial-gradient(circle,#12162a 0%,#070912 100%);border:1px solid var(--border-soft);flex-shrink:0;}
+.brand-text h1{font-family:var(--font-display);font-size:20px;font-weight:700;margin:0;letter-spacing:0.2px;background:linear-gradient(90deg,#fff,var(--accent) 120%);-webkit-background-clip:text;background-clip:text;color:transparent;}
+.brand-text p{margin:2px 0 0;font-size:12.5px;color:var(--text-dim);}
+
+.mode-switch{display:flex;background:var(--bg-panel-soft);border:1px solid var(--border);border-radius:999px;padding:4px;gap:4px;}
+.mode-btn{border:none;background:transparent;color:var(--text-dim);font-family:var(--font-display);font-weight:600;font-size:13.5px;padding:9px 18px;border-radius:999px;cursor:pointer;transition:all .2s ease;}
+.mode-btn.active{background:linear-gradient(135deg,var(--accent),var(--accent-dim));color:#052018;box-shadow:0 4px 14px rgba(0,240,192,.25);}
+.mode-btn:not(.active):hover{color:var(--text);background:var(--bg-elevated);}
+
+/* ---------- Layout ---------- */
+.layout{display:grid;grid-template-columns:1fr 340px;gap:18px;align-items:start;}
+.stage-col{display:flex;flex-direction:column;gap:14px;min-width:0;}
+
+.stage{
+  position:relative;background:#04050a;border-radius:var(--radius);
+  border:1px solid var(--border-soft);
+  box-shadow:0 10px 40px rgba(0,0,0,.55), inset 0 0 60px rgba(0,240,192,.03);
+  overflow:hidden;height:440px;
+  touch-action:none;
+}
+#canvas2D,canvas.webgl{width:100%;height:100%;display:block;}
+.stage-toolbar{position:absolute;top:10px;right:10px;display:flex;gap:6px;z-index:2;}
+.tool-btn{
+  width:36px;height:36px;border-radius:10px;border:1px solid var(--border);
+  background:rgba(14,17,32,.75);backdrop-filter:blur(6px);
+  color:var(--text-dim);font-size:15px;cursor:pointer;display:flex;align-items:center;justify-content:center;
+  transition:all .15s ease;
+}
+.tool-btn:hover{color:var(--accent);border-color:var(--accent);}
+.tool-btn.active{color:#052018;background:var(--accent);border-color:var(--accent);}
+.tool-btn.hidden{display:none;}
+.stage-badge{
+  position:absolute;top:10px;left:10px;z-index:2;font-family:var(--font-mono);
+  font-size:11px;letter-spacing:1px;color:var(--accent);background:rgba(0,240,192,.1);
+  border:1px solid rgba(0,240,192,.35);padding:4px 9px;border-radius:7px;
+}
+.stage-hint{position:absolute;bottom:10px;left:10px;z-index:2;font-size:11px;color:var(--text-faint);background:rgba(7,9,18,.6);padding:4px 8px;border-radius:6px;pointer-events:none;}
+
+.input-row{display:flex;align-items:center;gap:8px;background:var(--bg-panel);border:1px solid var(--border);border-radius:var(--radius-sm);padding:8px;}
+.input-fn{font-family:var(--font-mono);color:var(--accent);font-weight:600;font-size:15px;padding-left:6px;white-space:nowrap;}
+#mathInput{
+  flex:1;min-width:0;border:none;background:transparent;color:var(--text);
+  font-family:var(--font-mono);font-size:16px;padding:10px 6px;outline:none;
+}
+.icon-btn{
+  width:40px;height:40px;flex-shrink:0;border-radius:8px;border:1px solid var(--border);
+  background:var(--bg-elevated);color:var(--text-dim);font-size:15px;cursor:pointer;
+}
+.icon-btn:hover{color:var(--accent);border-color:var(--accent);}
+#btnLukis{
+  flex-shrink:0;border:none;border-radius:8px;padding:10px 20px;font-family:var(--font-display);
+  font-weight:700;font-size:14px;letter-spacing:.3px;color:#052018;cursor:pointer;
+  background:linear-gradient(135deg,var(--accent),var(--accent-dim));
+  box-shadow:0 4px 14px rgba(0,240,192,.25);transition:transform .12s ease;
+}
+#btnLukis:hover{transform:translateY(-1px);}
+#btnLukis:active{transform:translateY(0);}
+
+.preset-rail{display:flex;gap:8px;overflow-x:auto;padding-bottom:2px;scrollbar-width:thin;}
+.preset-chip{
+  flex-shrink:0;font-family:var(--font-mono);font-size:12.5px;color:var(--text-dim);
+  background:var(--bg-panel-soft);border:1px solid var(--border);padding:7px 12px;
+  border-radius:999px;cursor:pointer;white-space:nowrap;transition:all .15s ease;
+}
+.preset-chip:hover{color:var(--accent);border-color:var(--accent);}
+.preset-chip.dim3d::before{content:'◈ ';color:var(--accent2);}
+.preset-chip.dim2d::before{content:'◱ ';color:var(--accent);}
+
+/* ---------- Symbol dock ---------- */
+.symbol-dock{
+  background:var(--bg-panel);border:1px solid var(--border-soft);border-radius:var(--radius);
+  padding:14px;display:flex;flex-direction:column;max-height:634px;
+}
+.dock-title{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;}
+.dock-title span.t{font-family:var(--font-display);font-weight:700;font-size:14px;}
+.count-badge{background:var(--accent);color:#052018;font-size:11px;font-weight:800;padding:2px 8px;border-radius:999px;font-family:var(--font-mono);}
+#symSearch{
+  width:100%;margin-bottom:10px;font-size:14px;padding:9px 12px;border-radius:8px;
+  border:1px solid var(--border);background:var(--bg-panel-soft);color:var(--text);font-family:var(--font-body);
+}
+#symSearch:focus{outline:none;border-color:var(--accent);}
+.category-scroll{overflow-y:auto;flex:1;padding-right:4px;}
+.category{border:1px solid var(--border-soft);border-radius:9px;margin-bottom:6px;overflow:hidden;background:var(--bg-panel-soft);}
+.category-header{padding:9px 11px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;font-size:12px;font-weight:700;color:#cfd3ea;text-transform:uppercase;letter-spacing:.3px;user-select:none;}
+.category-header:hover{background:var(--bg-elevated);}
+.category-header .chev{transition:transform .18s ease;font-size:10px;color:var(--text-faint);}
+.category.open .category-header .chev{transform:rotate(90deg);}
+.category-body{display:flex;flex-wrap:wrap;gap:5px;max-height:0;overflow:hidden;padding:0 8px;transition:max-height .22s ease,padding .22s ease;}
+.category.open .category-body{max-height:400px;padding:4px 8px 9px;}
+.sym-btn{
+  padding:6px 9px;font-size:13px;background:var(--bg-elevated);border:1px solid var(--border);
+  color:#dde0f5;border-radius:6px;cursor:pointer;font-family:var(--font-mono);min-width:30px;font-weight:600;
+}
+.sym-btn:hover{background:var(--accent);color:#052018;border-color:var(--accent);}
+.category[data-type="preset"] .sym-btn{font-family:var(--font-body);font-size:12px;}
+.category[data-type="info"] .sym-btn{min-width:26px;}
+
+.box-white-hint{
+  margin-top:16px;background:var(--bg-panel);padding:12px 14px;border-radius:var(--radius-sm);
+  border:1px solid var(--border-soft);font-size:12px;color:var(--text-dim);line-height:1.6;
+  display:flex;flex-wrap:wrap;gap:16px;
+}
+.box-white-hint b{color:var(--accent);}
+
+/* ---------- Toasts & modal ---------- */
+#toastStack{position:fixed;bottom:calc(18px + env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);z-index:9998;display:flex;flex-direction:column;gap:8px;align-items:center;width:calc(100% - 32px);max-width:420px;}
+.toast{
+  font-size:13px;padding:11px 16px;border-radius:10px;background:var(--bg-elevated);
+  border:1px solid var(--border);color:var(--text);box-shadow:0 8px 24px rgba(0,0,0,.4);
+  opacity:0;transform:translateY(10px);transition:all .25s ease;width:100%;text-align:center;
+}
+.toast.show{opacity:1;transform:translateY(0);}
+.toast.error{border-color:var(--accent3);color:#ffd7dd;}
+.toast.success{border-color:var(--accent);color:#d3fff3;}
+
+#customModal{position:fixed;inset:0;background:rgba(4,5,10,.75);display:none;justify-content:center;align-items:center;z-index:9999;backdrop-filter:blur(3px);}
+.modal-content{background:var(--bg-elevated);border:1px solid var(--border);padding:22px;border-radius:14px;max-width:360px;width:90%;text-align:center;}
+.modal-content p{color:#fff;margin-bottom:16px;font-size:15px;}
+.modal-content button{background:linear-gradient(135deg,var(--accent),var(--accent-dim));border:none;color:#052018;padding:9px 18px;border-radius:8px;font-weight:700;cursor:pointer;}
+
+@media (prefers-reduced-motion: reduce){ *{scroll-behavior:auto !important;} }
+
+@media (max-width:900px){
+  .layout{grid-template-columns:1fr;}
+  .symbol-dock{max-height:420px;}
+  .stage{height:340px;}
+  .brand-text p{display:none;}
+}
+@media (max-width:480px){
+  .stage{height:300px;}
+  .mode-btn{padding:8px 13px;font-size:12.5px;}
+  .input-fn{display:none;}
+  #btnLukis{padding:10px 14px;font-size:13px;}
+  .box-white-hint{font-size:11.3px;}
+}
+</style>
+</head>
+<body>
+<canvas id="bgFX"></canvas>
+
+<div class="app-shell">
+  <header class="topbar">
+    <div class="brand">
+      <canvas id="logoFX" width="40" height="40"></canvas>
+      <div class="brand-text">
+        <h1>Geometri Interaktif</h1>
+        <p>Lukis &amp; terokai fungsi matematik dalam 2D dan 3D — masa nyata</p>
+      </div>
+    </div>
+    <div class="mode-switch" role="tablist">
+      <button class="mode-btn active" data-mode="2d" type="button">◱ 2D</button>
+      <button class="mode-btn" data-mode="3d" type="button">◈ 3D</button>
+    </div>
+  </header>
+
+  <main class="layout">
+    <section class="stage-col">
+      <div class="stage" id="canvas-container">
+        <canvas id="canvas2D"></canvas>
+        <div class="stage-toolbar">
+          <button class="tool-btn active" id="btnGrid" title="Togol grid" type="button">▦</button>
+          <button class="tool-btn" id="btnWire" title="Togol wayar (3D)" type="button">▤</button>
+          <button class="tool-btn" id="btnRotate" title="Auto putar (3D)" type="button">⟳</button>
+          <button class="tool-btn" id="btnResetView" title="Set semula paparan" type="button">⤾</button>
+        </div>
+        <div class="stage-badge" id="stageBadge">2D</div>
+        <div class="stage-hint" id="stageHint">Seret untuk gerak · Skrol/cubit untuk zum</div>
+      </div>
+
+      <div class="input-row">
+        <span class="input-fn" id="inputFnLabel">f(x) =</span>
+        <input type="text" id="mathInput" placeholder="Cth: sin(x) * cos(y)" value="sin(x)" autocomplete="off" autocapitalize="off" spellcheck="false">
+        <button class="icon-btn" id="btnRandom" title="Formula rawak" type="button">🎲</button>
+        <button class="icon-btn" id="btnCopy" title="Salin formula" type="button">⧉</button>
+        <button id="btnLukis" type="button">▶ Lukis</button>
+      </div>
+
+      <div class="preset-rail" id="presetRail"></div>
+    </section>
+
+    <aside class="symbol-dock">
+      <div class="dock-title">
+        <span class="t">🔣 Perpustakaan Simbol</span>
+        <span class="count-badge" id="symCount">0</span>
+      </div>
+      <input type="text" id="symSearch" placeholder="🔍 Cari simbol, fungsi atau templat...">
+      <div class="category-scroll" id="categoryList"></div>
+    </aside>
+  </main>
+
+  <div class="box-white-hint">
+    <span>💡 <b>Petua:</b> 2D guna pembolehubah <b>x</b>. 3D guna <b>x</b> dan <b>y</b>.</span>
+    <span>⌨️ Tekan <b>Enter</b> untuk lukis semula.</span>
+    <span>📱 Seret kanvas untuk gerak, cubit/skrol untuk zum.</span>
+    <span>Ω Kategori "Rujukan" menyalin simbol ke papan klip.</span>
+  </div>
+</div>
+
+<div id="toastStack"></div>
+<div id="customModal">
+  <div class="modal-content">
+    <p id="modalMessage">Mesej di sini</p>
+    <button id="modalCloseBtn" type="button">Tutup</button>
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   UTILITI ASAS: toast, modal, salin papan klip
+============================================================ */
+const reduceMotion = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+function toast(msg, type){
+  type = type || 'info';
+  const stack = document.getElementById('toastStack');
+  const el = document.createElement('div');
+  el.className = 'toast ' + type;
+  el.textContent = msg;
+  stack.appendChild(el);
+  requestAnimationFrame(() => el.classList.add('show'));
+  setTimeout(() => {
+    el.classList.remove('show');
+    setTimeout(() => el.remove(), 300);
+  }, 2600);
+}
+function tunjukAmaran(msg){
+  document.getElementById('modalMessage').textContent = msg;
+  document.getElementById('customModal').style.display = 'flex';
+}
+document.getElementById('modalCloseBtn').addEventListener('click', () => {
+  document.getElementById('customModal').style.display = 'none';
+});
+function copyText(str){
+  const done = () => toast('Disalin: ' + str, 'success');
+  const fail = () => toast('Tidak dapat menyalin', 'error');
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(str).then(done).catch(() => {
+      fallbackCopy(str) ? done() : fail();
+    });
+  } else {
+    fallbackCopy(str) ? done() : fail();
+  }
+}
+function fallbackCopy(str){
+  try {
+    const ta = document.createElement('textarea');
+    ta.value = str;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.focus(); ta.select();
+    const ok = document.execCommand('copy');
+    ta.remove();
+    return ok;
+  } catch (e) { return false; }
+}
+function clamp(v, lo, hi){ return Math.min(hi, Math.max(lo, v)); }
+function easeInOutCubic(t){ return t < 0.5 ? 4*t*t*t : 1 - Math.pow(-2*t+2, 3)/2; }
+function lerp(a, b, t){ return a + (b - a) * t; }
+
+/* ============================================================
+   LATAR BELAKANG: zarah simbol terapung
+============================================================ */
+(function bgFX(){
+  const bgCanvas = document.getElementById('bgFX');
+  const bgCtx = bgCanvas.getContext('2d');
+  const simbolTerapung = ['π','∑','√','∞','∫','Δ','θ','∂','×','÷','λ','Ω','φ','∇','∴'];
+  let zarah = [];
+  let dpr = Math.max(1, window.devicePixelRatio || 1);
+
+  function saizSemula(){
+    dpr = Math.max(1, window.devicePixelRatio || 1);
+    bgCanvas.width = window.innerWidth * dpr;
+    bgCanvas.height = window.innerHeight * dpr;
+    bgCanvas.style.width = window.innerWidth + 'px';
+    bgCanvas.style.height = window.innerHeight + 'px';
+    bgCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const n = reduceMotion ? 10 : 22;
+    zarah = Array.from({ length: n }, () => ({
+      x: Math.random() * window.innerWidth,
+      y: Math.random() * window.innerHeight,
+      kelajuan: 0.08 + Math.random() * 0.16,
+      saiz: 12 + Math.random() * 18,
+      simbol: simbolTerapung[Math.floor(Math.random() * simbolTerapung.length)],
+      fasa: Math.random() * Math.PI * 2
+    }));
+  }
+  saizSemula();
+  window.addEventListener('resize', saizSemula);
+
+  let masa = 0;
+  function gelung(){
+    masa += 0.01;
+    bgCtx.clearRect(0, 0, window.innerWidth, window.innerHeight);
+    bgCtx.textAlign = 'center';
+    bgCtx.textBaseline = 'middle';
+    for (const z of zarah) {
+      if (!reduceMotion) {
+        z.y -= z.kelajuan;
+        if (z.y < -30) { z.y = window.innerHeight + 30; z.x = Math.random() * window.innerWidth; }
+      }
+      const tw = 0.035 + Math.sin(masa * 2 + z.fasa) * 0.02;
+      bgCtx.font = `${z.saiz}px sans-serif`;
+      bgCtx.fillStyle = `rgba(0,240,192,${Math.max(0.015, tw)})`;
+      bgCtx.fillText(z.simbol, z.x + Math.sin(masa + z.fasa) * 8, z.y);
+    }
+    requestAnimationFrame(gelung);
+  }
+  requestAnimationFrame(gelung);
+})();
+
+/* Logo mini beranimasi — lengkung parametrik berputar */
+(function logoFX(){
+  const c = document.getElementById('logoFX');
+  const ctx = c.getContext('2d');
+  const dpr = Math.max(1, window.devicePixelRatio || 1);
+  c.width = 40 * dpr; c.height = 40 * dpr;
+  c.style.width = '40px'; c.style.height = '40px';
+  ctx.scale(dpr, dpr);
+  let t = 0;
+  function draw(){
+    ctx.clearRect(0, 0, 40, 40);
+    ctx.strokeStyle = 'rgba(124,92,255,0.5)';
+    ctx.beginPath();
+    for (let i = 0; i <= 60; i++) {
+      const a = (i / 60) * Math.PI * 2;
+      const r = 12 + 4 * Math.sin(3 * a + t);
+      const x = 20 + r * Math.cos(a);
+      const y = 20 + r * Math.sin(a);
+      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    }
+    ctx.closePath(); ctx.lineWidth = 1.2; ctx.stroke();
+    const px = 20 + 12 * Math.cos(t * 1.6);
+    const py = 20 + 12 * Math.sin(t * 1.6);
+    ctx.beginPath(); ctx.arc(px, py, 2.4, 0, Math.PI * 2);
+    ctx.fillStyle = '#00f0c0'; ctx.shadowColor = '#00f0c0'; ctx.shadowBlur = 8; ctx.fill();
+    ctx.shadowBlur = 0;
+    if (!reduceMotion) t += 0.02;
+    requestAnimationFrame(draw);
+  }
+  requestAnimationFrame(draw);
+})();
+
+/* ============================================================
+   PERPUSTAKAAN SIMBOL (110+ item merentasi 13 kategori)
+============================================================ */
+const KATEGORI = [
+  { nama:'Operator Asas', ikon:'➕', type:'insert', buka:true, item:[
+    {label:'+',insert:'+'},{label:'−',insert:'-'},{label:'×',insert:'*'},{label:'÷',insert:'/'},
+    {label:'(',insert:'('},{label:')',insert:')'},{label:'x',insert:'x'},{label:'y',insert:'y'},
+    {label:'^',insert:'^'},{label:'%',insert:'%'}
+  ]},
+  { nama:'Kuasa & Punca', ikon:'√', type:'insert', item:[
+    {label:'x²',insert:'x^2'},{label:'x³',insert:'x^3'},{label:'xⁿ',insert:'x^'},
+    {label:'√( )',insert:'sqrt()'},{label:'∛( )',insert:'cbrt()'},{label:'|x|',insert:'abs()'},{label:'1/x',insert:'1/x'}
+  ]},
+  { nama:'Trigonometri', ikon:'📐', type:'insert', item:[
+    {label:'sin',insert:'sin()'},{label:'cos',insert:'cos()'},{label:'tan',insert:'tan()'},
+    {label:'cot',insert:'cot()'},{label:'sec',insert:'sec()'},{label:'csc',insert:'csc()'}
+  ]},
+  { nama:'Trigo Songsang', ikon:'⤺', type:'insert', item:[
+    {label:'asin',insert:'asin()'},{label:'acos',insert:'acos()'},{label:'atan',insert:'atan()'},{label:'atan2',insert:'atan2(y,x)'}
+  ]},
+  { nama:'Hiperbolik', ikon:'∿', type:'insert', item:[
+    {label:'sinh',insert:'sinh()'},{label:'cosh',insert:'cosh()'},{label:'tanh',insert:'tanh()'},
+    {label:'asinh',insert:'asinh()'},{label:'acosh',insert:'acosh()'},{label:'atanh',insert:'atanh()'}
+  ]},
+  { nama:'Log & Eksponen', ikon:'㏒', type:'insert', item:[
+    {label:'ln',insert:'log()'},{label:'log₁₀',insert:'log10()'},{label:'log₂',insert:'log2()'},
+    {label:'exp',insert:'exp()'},{label:'√',insert:'sqrt()'}
+  ]},
+  { nama:'Pemalar', ikon:'π', type:'insert', item:[
+    {label:'π',insert:'pi'},{label:'e',insert:'e'},{label:'∞',insert:'Infinity'},{label:'φ',insert:'1.6180339887'}
+  ]},
+  { nama:'Fungsi Khas', ikon:'ƒ', type:'insert', item:[
+    {label:'floor',insert:'floor()'},{label:'ceil',insert:'ceil()'},{label:'round',insert:'round()'},
+    {label:'sign',insert:'sign()'},{label:'gcd',insert:'gcd(x,y)'},{label:'lcm',insert:'lcm(x,y)'},
+    {label:'n!',insert:'factorial()'},{label:'Γ',insert:'gamma()'},{label:'mod',insert:'mod(x,y)'}
+  ]},
+  { nama:'Kombinatorik', ikon:'⚌', type:'insert', item:[
+    {label:'nCr',insert:'combinations(n,k)'},{label:'nPr',insert:'permutations(n,k)'}
+  ]},
+  { nama:'Perbandingan', ikon:'≷', type:'insert', item:[
+    {label:'<',insert:'<'},{label:'>',insert:'>'},{label:'≤',insert:'<='},
+    {label:'≥',insert:'>='},{label:'=',insert:'=='},{label:'≠',insert:'!='}
+  ]},
+  { nama:'Templat 2D Popular', ikon:'📈', type:'preset', dim:'2d', item:[
+    {label:'sin(x)',formula:'sin(x)'},{label:'cos(x)',formula:'cos(x)'},{label:'tan(x)',formula:'tan(x)'},
+    {label:'x²',formula:'x^2'},{label:'x³−3x',formula:'x^3 - 3*x'},{label:'√|x|',formula:'sqrt(abs(x))'},
+    {label:'1/x',formula:'1/x'},{label:'|x|',formula:'abs(x)'},{label:'e^(−x²)',formula:'exp(-x^2)'},{label:'sin(x)/x',formula:'sin(x)/x'}
+  ]},
+  { nama:'Templat 3D Popular', ikon:'🧊', type:'preset', dim:'3d', item:[
+    {label:'sin(x)cos(y)',formula:'sin(x)*cos(y)'},{label:'x²−y²',formula:'x^2 - y^2'},
+    {label:'gelombang jejari',formula:'sin(sqrt(x^2+y^2))'},{label:'sin(x)sin(y)',formula:'sin(x)*sin(y)'},
+    {label:'mangkuk x²+y²',formula:'(x^2+y^2)/4'},{label:'sin(x+y)',formula:'sin(x+y)'},
+    {label:'cos(x)cos(y)',formula:'cos(x)*cos(y)'},{label:'Gaussian',formula:'exp(-(x^2+y^2)/4)'},
+    {label:'sin(xy)',formula:'sin(x*y)'},{label:'pusaran',formula:'sqrt(x^2+y^2)*sin(x)'}
+  ]},
+  { nama:'Huruf Yunani (Rujukan — salin)', ikon:'Ω', type:'info', item:[
+    {label:'α',name:'alfa'},{label:'β',name:'beta'},{label:'γ',name:'gama'},{label:'δ',name:'delta'},
+    {label:'ε',name:'epsilon'},{label:'ζ',name:'zeta'},{label:'η',name:'eta'},{label:'θ',name:'theta'},
+    {label:'ι',name:'iota'},{label:'κ',name:'kappa'},{label:'λ',name:'lambda'},{label:'μ',name:'mu'},
+    {label:'ν',name:'nu'},{label:'ξ',name:'xi'},{label:'ο',name:'omikron'},{label:'π',name:'pi'},
+    {label:'ρ',name:'rho'},{label:'σ',name:'sigma'},{label:'τ',name:'tau'},{label:'υ',name:'upsilon'},
+    {label:'φ',name:'phi'},{label:'χ',name:'chi'},{label:'ψ',name:'psi'},{label:'ω',name:'omega'},
+    {label:'Δ',name:'Delta besar'},{label:'Σ',name:'Sigma besar'},{label:'Ω',name:'Omega besar'},
+    {label:'Φ',name:'Phi besar'},{label:'Λ',name:'Lambda besar'},{label:'Θ',name:'Theta besar'},
+    {label:'Ψ',name:'Psi besar'},{label:'Γ',name:'Gama besar'}
+  ]}
+];
+
+const categoryListEl = document.getElementById('categoryList');
+const symSearchEl = document.getElementById('symSearch');
+const symCountEl = document.getElementById('symCount');
+const presetRailEl = document.getElementById('presetRail');
+
+let totalSym = 0;
+KATEGORI.forEach(k => totalSym += k.item.length);
+symCountEl.textContent = totalSym;
+
+KATEGORI.forEach((k, idx) => {
+  const wrap = document.createElement('div');
+  wrap.className = 'category' + (k.buka ? ' open' : '');
+  wrap.dataset.type = k.type;
+  wrap.dataset.index = idx;
+
+  const header = document.createElement('div');
+  header.className = 'category-header';
+  header.innerHTML = `<span>${k.ikon} ${k.nama}</span><span class="chev">▶</span>`;
+  header.addEventListener('click', () => wrap.classList.toggle('open'));
+
+  const body = document.createElement('div');
+  body.className = 'category-body';
+
+  k.item.forEach(s => {
+    const b = document.createElement('button');
+    b.className = 'sym-btn';
+    b.type = 'button';
+    b.textContent = s.label;
+    b.dataset.label = s.label.toLowerCase();
+    b.dataset.search = (s.insert || s.formula || s.name || '').toLowerCase();
+    if (k.type === 'insert') {
+      b.title = s.insert;
+      b.addEventListener('click', () => insertAtCursor(s.insert));
+    } else if (k.type === 'preset') {
+      b.title = s.formula;
+      b.addEventListener('click', () => loadPreset(s.formula, k.dim));
+    } else {
+      b.title = s.name;
+      b.addEventListener('click', () => copyText(s.label));
+    }
+    body.appendChild(b);
+  });
+
+  wrap.appendChild(header);
+  wrap.appendChild(body);
+  categoryListEl.appendChild(wrap);
+});
+
+/* Kereta luncur templat pantas di bawah input */
+KATEGORI.filter(k => k.type === 'preset').forEach(k => {
+  k.item.slice(0, 6).forEach(s => {
+    const chip = document.createElement('button');
+    chip.type = 'button';
+    chip.className = 'preset-chip ' + (k.dim === '3d' ? 'dim3d' : 'dim2d');
+    chip.textContent = s.label;
+    chip.addEventListener('click', () => loadPreset(s.formula, k.dim));
+    presetRailEl.appendChild(chip);
+  });
+});
+
+symSearchEl.addEventListener('input', () => {
+  const q = symSearchEl.value.trim().toLowerCase();
+  document.querySelectorAll('.category').forEach(catEl => {
+    let match = false;
+    catEl.querySelectorAll('.sym-btn').forEach(btn => {
+      const ok = !q || btn.dataset.label.includes(q) || btn.dataset.search.includes(q);
+      btn.style.display = ok ? 'inline-flex' : 'none';
+      if (ok) match = true;
+    });
+    catEl.style.display = match ? 'block' : 'none';
+    if (q) { if (match) catEl.classList.add('open'); }
+    else if (catEl.dataset.index !== '0') { catEl.classList.remove('open'); }
+  });
+});
+
+function insertAtCursor(text){
+  const el = document.getElementById('mathInput');
+  const start = el.selectionStart ?? el.value.length;
+  const end = el.selectionEnd ?? el.value.length;
+  el.value = el.value.substring(0, start) + text + el.value.substring(end);
+  el.focus();
+  const caret = start + text.length;
+  el.setSelectionRange(caret, caret);
+}
+
+function loadPreset(formula, dim){
+  document.getElementById('mathInput').value = formula;
+  if (dim !== mode) setMode(dim, true);
+  else redraw();
+}
+
+/* ============================================================
+   PENGIRAAN FORMULA (mathjs)
+============================================================ */
+function praprosesFormula(r){
+  return r.replace(/×/g, '*').replace(/÷/g, '/').replace(/−/g, '-');
+}
+function compileFormula(raw){
+  const trimmed = (raw || '').trim();
+  if (!trimmed) { toast('Sila masukkan formula terlebih dahulu.', 'error'); return null; }
+  try {
+    return math.compile(praprosesFormula(trimmed));
+  } catch (err) {
+    tunjukAmaran('Formula matematik tidak sah: ' + err.message);
+    return null;
+  }
+}
+
+const RANDOM_FORMULAS = {
+  '2d': ['sin(x)*x','cos(x^2)/2','tan(x)/3','x^3-2*x','sin(1/x)','sqrt(abs(sin(x)))','exp(-abs(x))*cos(4*x)','floor(sin(x)*3)'],
+  '3d': ['sin(x*y)','cos(x)+sin(y)','exp(-(x^2+y^2)/6)*3','sin(x^2+y^2)/2','x*sin(y)','sin(x)*cos(2*y)','(x^2-y^2)/4','cos(sqrt(x^2+y^2))']
+};
+
+/* ============================================================
+   MOD & KEADAAN
+============================================================ */
+let mode = '2d';
+const container = document.getElementById('canvas-container');
+const stageBadge = document.getElementById('stageBadge');
+const stageHint = document.getElementById('stageHint');
+const inputFizikal = document.getElementById('mathInput');
+const btnLukis = document.getElementById('btnLukis');
+const btnGrid = document.getElementById('btnGrid');
+const btnWire = document.getElementById('btnWire');
+const btnRotate = document.getElementById('btnRotate');
+const btnResetView = document.getElementById('btnResetView');
+const inputFnLabel = document.getElementById('inputFnLabel');
+
+let gridOn = true;
+let wireOn = false;
+let autoRotateOn = false;
+
+let dpr = Math.max(1, window.devicePixelRatio || 1);
+
+/* ============================================================
+   MOD 2D
+============================================================ */
+let canvas2D = document.getElementById('canvas2D');
+let ctx2D = canvas2D.getContext('2d');
+let size2D = { W: 700, H: 420 };
+let view2D = { scale: 1, offX: 0, offY: 0 };
+let curveState = { points: [], startTime: 0, duration: reduceMotion ? 1 : 450, ghost: null, ghostStart: 0 };
+let raf2D = null;
+
+function resizeCanvas2D(){
+  dpr = Math.max(1, window.devicePixelRatio || 1);
+  const rect = container.getBoundingClientRect();
+  const W = Math.max(200, Math.round(rect.width));
+  const H = Math.max(160, Math.round(rect.height));
+  size2D = { W, H };
+  canvas2D.width = W * dpr;
+  canvas2D.height = H * dpr;
+  canvas2D.style.width = W + 'px';
+  canvas2D.style.height = H + 'px';
+  ctx2D = canvas2D.getContext('2d');
+  ctx2D.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+
+function computeCurve(compiled){
+  const N = 2200;
+  const range = 30;
+  const pts = new Array(N + 1);
+  for (let i = 0; i <= N; i++) {
+    const x = -range + (i / N) * range * 2;
+    let y;
+    try {
+      y = compiled.evaluate({ x });
+      if (typeof y !== 'number' || !isFinite(y)) y = null;
+    } catch (e) { y = null; }
+    pts[i] = y === null ? null : { x, y };
+  }
+  return pts;
+}
+
+function niceStep(target){
+  const steps = [1, 2, 5, 10, 20, 50, 100];
+  let best = steps[0];
+  for (const s of steps) { if (s <= target) best = s; }
+  return best;
+}
+
+function screenX(x){ return size2D.W / 2 + view2D.offX + x * 40 * view2D.scale; }
+function screenY(y){ return size2D.H / 2 + view2D.offY - y * 40 * view2D.scale; }
+
+function drawGridAxes(){
+  const { W, H } = size2D;
+  const px = 40 * view2D.scale;
+  if (gridOn) {
+    const worldUnit = niceStep(90 / px) || 1;
+    const step = worldUnit * px;
+    ctx2D.strokeStyle = 'rgba(124,92,255,0.10)';
+    ctx2D.lineWidth = 1;
+    ctx2D.beginPath();
+    const originX = size2D.W / 2 + view2D.offX;
+    const originY = size2D.H / 2 + view2D.offY;
+    for (let gx = originX % step; gx < W; gx += step) { ctx2D.moveTo(gx, 0); ctx2D.lineTo(gx, H); }
+    for (let gy = originY % step; gy < H; gy += step) { ctx2D.moveTo(0, gy); ctx2D.lineTo(W, gy); }
+    ctx2D.stroke();
+    ctx2D.fillStyle = 'rgba(146,152,189,0.55)';
+    ctx2D.font = '10px ' + getComputedStyle(document.body).fontFamily;
+    let n = Math.round((0 - originX) / step);
+    for (let gx = originX % step; gx < W; gx += step, n++) {
+      const val = Math.round((gx - originX) / px * worldUnit / worldUnit) * worldUnit;
+      const worldVal = ((gx - originX) / px);
+      if (Math.abs(worldVal) > 0.001) ctx2D.fillText(Math.round(worldVal * 10) / 10, gx + 2, originY + 12);
+    }
+  }
+  ctx2D.strokeStyle = 'rgba(238,241,251,0.28)';
+  ctx2D.lineWidth = 1.4;
+  ctx2D.beginPath();
+  ctx2D.moveTo(screenX(-9999), screenY(0)); ctx2D.lineTo(screenX(9999), screenY(0));
+  ctx2D.moveTo(screenX(0), screenY(-9999)); ctx2D.lineTo(screenX(0), screenY(9999));
+  ctx2D.stroke();
+}
+
+function drawCurve(points, alpha, glow, color){
+  if (!points || !points.length) return;
+  ctx2D.save();
+  ctx2D.globalAlpha = alpha;
+  ctx2D.strokeStyle = color;
+  ctx2D.lineWidth = 2.4;
+  if (glow && !reduceMotion) { ctx2D.shadowColor = color; ctx2D.shadowBlur = 9; }
+  ctx2D.beginPath();
+  let started = false;
+  for (let i = 0; i < points.length; i++) {
+    const p = points[i];
+    if (!p) { started = false; continue; }
+    const sx = screenX(p.x), sy = screenY(p.y);
+    if (sy < -1000 || sy > size2D.H + 1000) { started = false; continue; }
+    if (!started) { ctx2D.moveTo(sx, sy); started = true; }
+    else ctx2D.lineTo(sx, sy);
+  }
+  ctx2D.stroke();
+  ctx2D.restore();
+}
+
+function drawTracer(points, frac){
+  const idx = Math.min(points.length - 1, Math.max(0, Math.floor(frac * points.length)));
+  const p = points[idx];
+  if (!p) return;
+  const sx = screenX(p.x), sy = screenY(p.y);
+  ctx2D.save();
+  ctx2D.beginPath();
+  ctx2D.arc(sx, sy, 4.5, 0, Math.PI * 2);
+  ctx2D.fillStyle = '#ffffff';
+  ctx2D.shadowColor = '#00f0c0'; ctx2D.shadowBlur = 14;
+  ctx2D.fill();
+  ctx2D.restore();
+}
+
+function loop2D(now){
+  if (mode !== '2d') return;
+  ctx2D.clearRect(0, 0, size2D.W, size2D.H);
+  drawGridAxes();
+  if (curveState.ghost) {
+    const gt = (now - curveState.ghostStart) / 380;
+    if (gt < 1) drawCurve(curveState.ghost, (1 - gt) * 0.35, false, '#5c6389');
+    else curveState.ghost = null;
+  }
+  const t = curveState.startTime ? Math.min(1, (now - curveState.startTime) / curveState.duration) : 1;
+  const upto = Math.max(1, Math.floor(easeInOutCubic(t) * curveState.points.length));
+  drawCurve(curveState.points.slice(0, upto), 1, true, '#00f0c0');
+  if (t >= 1 && !reduceMotion) {
+    const loopDur = 5000;
+    const frac = ((now - curveState.startTime - curveState.duration) % loopDur + loopDur) % loopDur / loopDur;
+    drawTracer(curveState.points, frac);
+  }
+  raf2D = requestAnimationFrame(loop2D);
+}
+
+function redraw2D(){
+  const compiled = compileFormula(inputFizikal.value);
+  if (!compiled) return;
+  const pts = computeCurve(compiled);
+  curveState.ghost = curveState.points.length ? curveState.points : null;
+  curveState.ghostStart = performance.now();
+  curveState.points = pts;
+  curveState.startTime = performance.now();
+  if (!raf2D) raf2D = requestAnimationFrame(loop2D);
+}
+
+/* Pan + zum (tetikus & sentuh) */
+(function panZoom2D(){
+  const pointers = new Map();
+  let dragState = null;
+  let pinchState = null;
+  function dist(a, b){ return Math.hypot(a.x - b.x, a.y - b.y); }
+
+  container.addEventListener('pointerdown', (e) => {
+    if (mode !== '2d') return;
+    canvas2D.setPointerCapture && canvas2D.setPointerCapture(e.pointerId);
+    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pointers.size === 1) {
+      dragState = { startX: e.clientX, startY: e.clientY, offX: view2D.offX, offY: view2D.offY };
+    } else if (pointers.size === 2) {
+      dragState = null;
+      const pts = [...pointers.values()];
+      pinchState = { d: dist(pts[0], pts[1]), scale: view2D.scale };
+    }
+  });
+  container.addEventListener('pointermove', (e) => {
+    if (mode !== '2d' || !pointers.has(e.pointerId)) return;
+    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pointers.size === 1 && dragState) {
+      view2D.offX = dragState.offX + (e.clientX - dragState.startX);
+      view2D.offY = dragState.offY + (e.clientY - dragState.startY);
+    } else if (pointers.size === 2 && pinchState) {
+      const pts = [...pointers.values()];
+      const d = dist(pts[0], pts[1]);
+      view2D.scale = clamp(pinchState.scale * (d / pinchState.d), 0.15, 8);
+    }
+  });
+  function endPointer(e){
+    pointers.delete(e.pointerId);
+    if (pointers.size === 0) { dragState = null; pinchState = null; }
+  }
+  container.addEventListener('pointerup', endPointer);
+  container.addEventListener('pointercancel', endPointer);
+  container.addEventListener('pointerleave', endPointer);
+  container.addEventListener('wheel', (e) => {
+    if (mode !== '2d') return;
+    e.preventDefault();
+    const factor = e.deltaY < 0 ? 1.12 : 0.89;
+    view2D.scale = clamp(view2D.scale * factor, 0.15, 8);
+  }, { passive: false });
+})();
+
+/* ============================================================
+   MOD 3D
+============================================================ */
+let renderer, scene, camera, controls, mesh, starField, pointLight;
+let raf3D = null;
+let webGLOk = true;
+const RES = 42, SIZE3D = 7;
+let xGrid, yGrid, currentZ, currentColors;
+let posAttr, colorAttr, geo3D;
+let morphState = null;
+
+function heightColor(t){
+  t = clamp(t, 0, 1);
+  const stops = [
+    { t: 0, c: [124, 92, 255] },
+    { t: 0.5, c: [0, 240, 192] },
+    { t: 1, c: [255, 107, 129] }
+  ];
+  let a = stops[0], b = stops[1];
+  if (t > 0.5) { a = stops[1]; b = stops[2]; }
+  const lt = (t - a.t) / (b.t - a.t || 1);
+  return [
+    lerp(a.c[0], b.c[0], lt) / 255,
+    lerp(a.c[1], b.c[1], lt) / 255,
+    lerp(a.c[2], b.c[2], lt) / 255
+  ];
+}
+
+function init3D(){
+  scene = new THREE.Scene();
+  camera = new THREE.PerspectiveCamera(75, 1, 0.1, 1000);
+  renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+  renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
+  renderer.domElement.className = 'webgl';
+
+  renderer.domElement.addEventListener('webglcontextlost', (e) => {
+    e.preventDefault();
+    if (raf3D) cancelAnimationFrame(raf3D);
+    raf3D = null;
+    toast('Konteks WebGL hilang. Cuba tukar mod semula.', 'error');
+  });
+  renderer.domElement.addEventListener('webglcontextrestored', () => {
+    toast('WebGL dipulihkan.', 'success');
+    if (mode === '3d' && !raf3D) animate3D();
+  });
+
+  const dirLight = new THREE.DirectionalLight(0xffffff, 1);
+  dirLight.position.set(2, 5, 5);
+  scene.add(dirLight);
+  scene.add(new THREE.AmbientLight(0x606a90, 0.9));
+  pointLight = new THREE.PointLight(0x7c5cff, 1.1, 30);
+  pointLight.position.set(-4, 3, 4);
+  scene.add(pointLight);
+
+  scene.fog = new THREE.FogExp2(0x04050a, 0.045);
+  const grid = new THREE.GridHelper(16, 24, 0x00f0c0, 0x1c2436);
+  grid.position.y = -3.2;
+  scene.add(grid);
+
+  const starGeo = new THREE.BufferGeometry();
+  const starCount = reduceMotion ? 120 : 320;
+  const starPos = new Float32Array(starCount * 3);
+  for (let i = 0; i < starCount; i++) {
+    const r = 20 + Math.random() * 30;
+    const th = Math.random() * Math.PI * 2;
+    const ph = Math.random() * Math.PI;
+    starPos[i*3] = r * Math.sin(ph) * Math.cos(th);
+    starPos[i*3+1] = r * Math.cos(ph);
+    starPos[i*3+2] = r * Math.sin(ph) * Math.sin(th);
+  }
+  starGeo.setAttribute('position', new THREE.BufferAttribute(starPos, 3));
+  starField = new THREE.Points(starGeo, new THREE.PointsMaterial({ color: 0x8890b3, size: 0.09, transparent: true, opacity: 0.55 }));
+  scene.add(starField);
+
+  camera.position.set(0, -5, 5.2);
+  controls = new THREE.OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true;
+  controls.autoRotateSpeed = 1.1;
+
+  const vertCount = (RES + 1) * (RES + 1);
+  xGrid = new Float32Array(vertCount);
+  yGrid = new Float32Array(vertCount);
+  currentZ = new Float32Array(vertCount);
+  currentColors = new Float32Array(vertCount * 3);
+  const positions = new Float32Array(vertCount * 3);
+  const indices = [];
+  let vi = 0;
+  for (let j = 0; j <= RES; j++) {
+    for (let i = 0; i <= RES; i++) {
+      const x = -SIZE3D / 2 + (i / RES) * SIZE3D;
+      const y = -SIZE3D / 2 + (j / RES) * SIZE3D;
+      xGrid[vi] = x; yGrid[vi] = y;
+      positions[vi*3] = x; positions[vi*3+1] = y; positions[vi*3+2] = 0;
+      const rgb = heightColor(0.5);
+      currentColors[vi*3] = rgb[0]; currentColors[vi*3+1] = rgb[1]; currentColors[vi*3+2] = rgb[2];
+      vi++;
+    }
+  }
+  for (let j = 0; j < RES; j++) {
+    for (let i = 0; i < RES; i++) {
+      const a = j * (RES + 1) + i, b = a + 1, c = a + (RES + 1), d = c + 1;
+      indices.push(a, b, d, a, d, c);
+    }
+  }
+  geo3D = new THREE.BufferGeometry();
+  geo3D.setIndex(indices);
+  posAttr = new THREE.Float32BufferAttribute(positions, 3);
+  colorAttr = new THREE.Float32BufferAttribute(currentColors, 3);
+  geo3D.setAttribute('position', posAttr);
+  geo3D.setAttribute('color', colorAttr);
+  geo3D.computeVertexNormals();
+
+  const material = new THREE.MeshStandardMaterial({
+    vertexColors: true, wireframe: wireOn, side: THREE.DoubleSide,
+    roughness: 0.45, metalness: 0.08, transparent: true, opacity: 0.97
+  });
+  mesh = new THREE.Mesh(geo3D, material);
+  mesh.rotation.z = -Math.PI;
+  scene.add(mesh);
+}
+
+try { init3D(); } catch (e) { webGLOk = false; }
+
+function evaluateField(compiled){
+  const vertCount = (RES + 1) * (RES + 1);
+  const out = new Float32Array(vertCount);
+  for (let i = 0; i < vertCount; i++) {
+    let z;
+    try {
+      z = compiled.evaluate({ x: xGrid[i], y: yGrid[i] });
+      if (typeof z !== 'number' || !isFinite(z)) z = 0;
+    } catch (e) { z = 0; }
+    out[i] = clamp(z, -8, 8) * 0.55;
+  }
+  return out;
+}
+function computeColors(zArray){
+  let minZ = Infinity, maxZ = -Infinity;
+  for (let i = 0; i < zArray.length; i++) { if (zArray[i] < minZ) minZ = zArray[i]; if (zArray[i] > maxZ) maxZ = zArray[i]; }
+  const range = (maxZ - minZ) || 1;
+  const out = new Float32Array(zArray.length * 3);
+  for (let i = 0; i < zArray.length; i++) {
+    const rgb = heightColor((zArray[i] - minZ) / range);
+    out[i*3] = rgb[0]; out[i*3+1] = rgb[1]; out[i*3+2] = rgb[2];
+  }
+  return out;
+}
+
+function redraw3D(){
+  const compiled = compileFormula(inputFizikal.value);
+  if (!compiled) return;
+  const targetZ = evaluateField(compiled);
+  const targetC = computeColors(targetZ);
+  morphState = { fromZ: currentZ.slice(), toZ: targetZ, fromC: currentColors.slice(), toC: targetC, start: performance.now(), duration: reduceMotion ? 1 : 600 };
+}
+
+function animate3D(){
+  if (mode !== '3d') return;
+  raf3D = requestAnimationFrame(animate3D);
+  if (morphState) {
+    const t = Math.min(1, (performance.now() - morphState.start) / morphState.duration);
+    const e = easeInOutCubic(t);
+    const posArr = posAttr.array, colArr = colorAttr.array;
+    for (let i = 0; i < currentZ.length; i++) {
+      const z = lerp(morphState.fromZ[i], morphState.toZ[i], e);
+      posArr[i*3+2] = z;
+      colArr[i*3] = lerp(morphState.fromC[i*3], morphState.toC[i*3], e);
+      colArr[i*3+1] = lerp(morphState.fromC[i*3+1], morphState.toC[i*3+1], e);
+      colArr[i*3+2] = lerp(morphState.fromC[i*3+2], morphState.toC[i*3+2], e);
+    }
+    posAttr.needsUpdate = true; colorAttr.needsUpdate = true;
+    geo3D.computeVertexNormals();
+    if (t >= 1) { currentZ = morphState.toZ; currentColors = morphState.toC; morphState = null; }
+  }
+  if (!reduceMotion) {
+    const hue = (performance.now() * 0.00006) % 1;
+    pointLight.color.setHSL(hue, 0.7, 0.62);
+    starField.rotation.y += 0.0006;
+  }
+  controls.update();
+  renderer.render(scene, camera);
+}
+
+function resize3D(){
+  if (!renderer) return;
+  const rect = container.getBoundingClientRect();
+  renderer.setSize(rect.width, rect.height);
+  camera.aspect = rect.width / rect.height;
+  camera.updateProjectionMatrix();
+}
+
+/* ============================================================
+   PENGURUSAN SAIZ (ResizeObserver — kerja merentas peranti)
+============================================================ */
+const ro = new ResizeObserver(() => {
+  if (mode === '2d') { resizeCanvas2D(); }
+  else { resize3D(); }
+});
+ro.observe(container);
+window.addEventListener('orientationchange', () => setTimeout(() => {
+  if (mode === '2d') resizeCanvas2D(); else resize3D();
+}, 250));
+
+/* ============================================================
+   TUKAR MOD
+============================================================ */
+function setMode(newMode, silent){
+  if (newMode === mode) { if (!silent) redraw(); return; }
+  if (newMode === '3d' && !webGLOk) { toast('Mod 3D tidak disokong pada peranti ini.', 'error'); return; }
+  mode = newMode;
+  document.querySelectorAll('.mode-btn').forEach(b => b.classList.toggle('active', b.dataset.mode === mode));
+  stageBadge.textContent = mode.toUpperCase();
+  inputFnLabel.textContent = mode === '3d' ? 'f(x,y) =' : 'f(x) =';
+  stageHint.textContent = mode === '3d' ? 'Seret untuk putar · Skrol untuk zum' : 'Seret untuk gerak · Skrol/cubit untuk zum';
+  btnWire.classList.toggle('hidden', mode !== '3d');
+  btnRotate.classList.toggle('hidden', mode !== '3d');
+
+  container.innerHTML = '';
+  if (mode === '3d') {
+    if (raf2D) { cancelAnimationFrame(raf2D); raf2D = null; }
+    container.appendChild(renderer.domElement);
+    resize3D();
+    redraw3D();
+    if (!raf3D) animate3D();
+  } else {
+    if (raf3D) { cancelAnimationFrame(raf3D); raf3D = null; }
+    canvas2D = document.createElement('canvas');
+    canvas2D.id = 'canvas2D';
+    container.appendChild(canvas2D);
+    resizeCanvas2D();
+    redraw2D();
+  }
+}
+function redraw(){ mode === '3d' ? redraw3D() : redraw2D(); }
+
+document.querySelectorAll('.mode-btn').forEach(btn => {
+  btn.addEventListener('click', () => setMode(btn.dataset.mode));
+});
+
+/* ============================================================
+   KAWALAN BAR ALAT
+============================================================ */
+btnGrid.addEventListener('click', () => { gridOn = !gridOn; btnGrid.classList.toggle('active', gridOn); });
+btnWire.addEventListener('click', () => {
+  wireOn = !wireOn; btnWire.classList.toggle('active', wireOn);
+  if (mesh) mesh.material.wireframe = wireOn;
+});
+btnRotate.addEventListener('click', () => {
+  autoRotateOn = !autoRotateOn; btnRotate.classList.toggle('active', autoRotateOn);
+  if (controls) controls.autoRotate = autoRotateOn;
+});
+btnResetView.addEventListener('click', () => {
+  if (mode === '2d') { view2D = { scale: 1, offX: 0, offY: 0 }; toast('Paparan 2D disetkan semula.'); }
+  else if (camera) {
+    camera.position.set(0, -5, 5.2);
+    controls.target.set(0, 0, 0);
+    controls.update();
+    toast('Paparan 3D disetkan semula.');
+  }
+});
+
+btnLukis.addEventListener('click', redraw);
+inputFizikal.addEventListener('keydown', (e) => { if (e.key === 'Enter') redraw(); });
+document.getElementById('btnRandom').addEventListener('click', () => {
+  const list = RANDOM_FORMULAS[mode];
+  const f = list[Math.floor(Math.random() * list.length)];
+  inputFizikal.value = f;
+  redraw();
+});
+document.getElementById('btnCopy').addEventListener('click', () => copyText(inputFizikal.value));
+
+/* ============================================================
+   MULA
+============================================================ */
+resizeCanvas2D();
+window.addEventListener('load', () => { redraw2D(); });
+</script>
+</body>
+</html>
